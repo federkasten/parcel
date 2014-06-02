@@ -1,20 +1,41 @@
 (ns parcel
-  (:require [langohr.core :as amqp-core]
+  (:require [clojure.java.io :as io]
+            [clojure.edn :as edn]
+            [clojure.data.fressian :as fressian]
+            [langohr.core :as amqp-core]
             [langohr.channel :as amqp-channel]
             [langohr.basic :as amqp-basic]
-            [langohr.queue :as amqp-queue]
-            [clojure.data.fressian :as fressian]))
+            [langohr.queue :as amqp-queue]))
 
-(def ^:dynamic *default-connection* (atom nil))
+(def ^:private config-filename "parcel.config")
+
+(def ^:dynamic *default-connection* nil)
+
+(def ^:dynamic *amqp-config* nil)
+
+(defn load-config!
+  []
+  (let [rsrc (if-let [r (io/resource (str config-filename ".clj"))]
+               r
+               (if-let [r (io/resource (str config-filename ".edn"))]
+                 r
+                 nil))]
+    (when-let [conf (if-not (nil? rsrc)
+                      (edn/read-string (slurp rsrc)))]
+      (intern 'parcel '*amqp-config* (:amqp conf)))))
 
 (defrecord Connection [config queue conn ch])
 
 (defn open!
-  [config queue]
-  (let [conn (amqp-core/connect config)
-        ch (amqp-channel/open conn)]
-    (amqp-queue/declare ch queue :exclusive false :auto-delete true)
-    (Connection. config queue conn ch)))
+  ([queue]
+     (if-let [config *amqp-config*]
+       (open! config queue)
+       (throw (RuntimeException. (str "AMQP Configuration is not specified")))))
+  ([config queue]
+     (let [conn (amqp-core/connect config)
+           ch (amqp-channel/open conn)]
+       (amqp-queue/declare ch queue :exclusive false :auto-delete true)
+       (Connection. config queue conn ch))))
 
 (defn close!
   [connection]
@@ -50,8 +71,10 @@
           :type type}))))
 
 (defmacro with-connection
-  [config queue & exprs]
-  `(let [c# (parcel/open! ~config ~queue)]
+  [queue & exprs]
+  `(let [c# (parcel/open! ~queue)]
      (binding [parcel/*default-connection* c#]
        ~@exprs)
      (parcel/close! c#)))
+
+(load-config!)
