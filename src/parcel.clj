@@ -14,6 +14,7 @@
 (def ^:dynamic *amqp-config* nil)
 
 (defn load-config!
+  "Load configuration file from class path"
   []
   (let [rsrc (if-let [r (io/resource (str config-filename ".clj"))]
                r
@@ -27,10 +28,11 @@
 (defrecord Connection [config queue conn ch])
 
 (defn open!
+  "Open a connection to a quque"
   ([queue]
      (if-let [config *amqp-config*]
        (open! config queue)
-       (throw (RuntimeException. (str "AMQP Configuration is not specified")))))
+       (throw (RuntimeException. (str "AMQP configuration is not specified")))))
   ([config queue]
      (let [conn (amqp-core/connect config)
            ch (amqp-channel/open conn)]
@@ -38,11 +40,13 @@
        (Connection. config queue conn ch))))
 
 (defn close!
+  "Close a connection from a queue"
   [connection]
   (amqp-core/close (:ch connection))
   (amqp-core/close (:conn connection)))
 
 (defn send-message!
+  "Send(Enqueue) a message"
   ([body type]
      (send-message! *default-connection* body type))
   ([connection body type]
@@ -56,12 +60,14 @@
                          :type type)))
 
 (defn clear-messages!
+  "Clear all messages from a queue"
   ([]
      (clear-messages! *default-connection*))
   ([connection]
      (amqp-queue/purge (:ch connection) (:queue connection))))
 
 (defn receive-message!
+  "Receive one message from a queue"
   ([]
      (receive-message! *default-connection*))
   ([connection]
@@ -71,6 +77,7 @@
           :type type}))))
 
 (defmacro with-connection
+  ""
   [queue & exprs]
   `(let [c# (parcel/open! ~queue)]
      (binding [parcel/*default-connection* c#]
