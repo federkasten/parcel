@@ -53,7 +53,6 @@
    (amqp-basic/publish (:ch connection)
                        ""
                        (:queue connection)
-                       ;; (pr-str {:method method :entry entry})
                        (-> body
                            fressian/write
                            .array)
