@@ -36,7 +36,7 @@
   ([config queue]
      (let [conn (amqp-core/connect config)
            ch (amqp-channel/open conn)]
-       (amqp-queue/declare ch queue :exclusive false :auto-delete true)
+       (amqp-queue/declare ch queue {:exclusive false :auto-delete true})
        (Connection. config queue conn ch))))
 
 (defn close!
