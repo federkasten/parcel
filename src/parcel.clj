@@ -50,14 +50,15 @@
   ([body type]
      (send-message! *default-connection* body type))
   ([connection body type]
-     (amqp-basic/publish (:ch connection) ""
-                         (:queue connection)
-                         ;; (pr-str {:method method :entry entry})
-                         (-> body
-                             fressian/write
-                             .array)
-                         :content-type "application/fressian"
-                         :type type)))
+   (amqp-basic/publish (:ch connection)
+                       ""
+                       (:queue connection)
+                       ;; (pr-str {:method method :entry entry})
+                       (-> body
+                           fressian/write
+                           .array)
+                       {:content-type "application/fressian"
+                        :type type})))
 
 (defn clear-messages!
   "Clear all messages from a queue"
