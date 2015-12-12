@@ -23,7 +23,7 @@
                  nil))]
     (when-let [conf (if-not (nil? rsrc)
                       (edn/read-string (slurp rsrc)))]
-      (intern 'parcel '*amqp-config* (:amqp conf)))))
+      (intern 'parcel.core '*amqp-config* (:amqp conf)))))
 
 (defrecord Connection [config queue conn ch])
 
@@ -83,5 +83,3 @@
      (binding [parcel.core/*default-connection* c#]
        ~@exprs)
      (parcel.core/close! c#)))
-
-(load-config!)
