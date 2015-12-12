@@ -1,4 +1,4 @@
-(ns parcel
+(ns parcel.core
   (:require [clojure.java.io :as io]
             [clojure.edn :as edn]
             [clojure.data.fressian :as fressian]
@@ -46,7 +46,7 @@
   (amqp-core/close (:conn connection)))
 
 (defn send-message!
-  "Send(Enqueue) a message"
+  "Send a message"
   ([body type]
      (send-message! *default-connection* body type))
   ([connection body type]
@@ -79,9 +79,9 @@
 (defmacro with-connection
   ""
   [queue & exprs]
-  `(let [c# (parcel/open! ~queue)]
-     (binding [parcel/*default-connection* c#]
+  `(let [c# (parcel.core/open! ~queue)]
+     (binding [parcel.core/*default-connection* c#]
        ~@exprs)
-     (parcel/close! c#)))
+     (parcel.core/close! c#)))
 
 (load-config!)
