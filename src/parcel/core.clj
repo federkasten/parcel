@@ -30,14 +30,14 @@
 (defn open!
   "Open a connection to a quque"
   ([queue]
-     (if-let [config *amqp-config*]
-       (open! config queue)
-       (throw (RuntimeException. (str "AMQP configuration is not specified")))))
+   (if-let [config *amqp-config*]
+     (open! config queue)
+     (throw (RuntimeException. (str "AMQP configuration is not specified")))))
   ([config queue]
-     (let [conn (amqp-core/connect config)
-           ch (amqp-channel/open conn)]
-       (amqp-queue/declare ch queue {:exclusive false :auto-delete true})
-       (Connection. config queue conn ch))))
+   (let [conn (amqp-core/connect config)
+         ch (amqp-channel/open conn)]
+     (amqp-queue/declare ch queue {:exclusive false :auto-delete true})
+     (Connection. config queue conn ch))))
 
 (defn close!
   "Close a connection from a queue"
@@ -47,34 +47,32 @@
 
 (defn send-message!
   "Send a message"
-  ([body type]
-     (send-message! *default-connection* body type))
-  ([connection body type]
+  ([body]
+   (send-message! *default-connection* body))
+  ([connection body]
    (amqp-basic/publish (:ch connection)
                        ""
                        (:queue connection)
                        (-> body
                            fressian/write
                            .array)
-                       {:content-type "application/fressian"
-                        :type type})))
+                       {:content-type "application/fressian"})))
 
 (defn clear-messages!
   "Clear all messages from a queue"
   ([]
-     (clear-messages! *default-connection*))
+   (clear-messages! *default-connection*))
   ([connection]
-     (amqp-queue/purge (:ch connection) (:queue connection))))
+   (amqp-queue/purge (:ch connection) (:queue connection))))
 
 (defn receive-message!
   "Receive one message from a queue"
   ([]
-     (receive-message! *default-connection*))
+   (receive-message! *default-connection*))
   ([connection]
-     (let [[{:keys [content-type type] :as meta} ^bytes payload] (amqp-basic/get (:ch connection) (:queue connection))]
-       (if-not (nil? payload)
-         {:body (fressian/read payload)
-          :type type}))))
+   (let [[{:keys [content-type] :as meta} ^bytes payload] (amqp-basic/get (:ch connection) (:queue connection))]
+     (if-not (nil? payload)
+       (fressian/read payload)))))
 
 (defmacro with-connection
   ""
