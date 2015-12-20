@@ -79,5 +79,6 @@
   [queue & exprs]
   `(let [c# (parcel.core/open! ~queue)]
      (binding [parcel.core/*default-connection* c#]
-       ~@exprs)
-     (parcel.core/close! c#)))
+       (let [result# (do ~@exprs)]
+         (parcel.core/close! c#)
+         result#))))
