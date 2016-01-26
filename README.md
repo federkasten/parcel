@@ -1,6 +1,6 @@
 # parcel
 
-Simple Clojure library for message passing with RabbitMQ(AMQP)
+Simple message passing libbrary using AMQP(RabbitMQ)
 
 ## Usage
 
@@ -14,7 +14,7 @@ TODO
 
 ## License
 
-Copyright 2014 [Takashi AOKI][tak.sh]
+Copyright [Takashi AOKI][tak.sh]
 
 Licensed under the [Apache License, Version 2.0][apache-license-2.0].
 

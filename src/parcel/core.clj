@@ -1,84 +1,41 @@
 (ns parcel.core
-  (:require [clojure.java.io :as io]
-            [clojure.edn :as edn]
-            [clojure.data.fressian :as fressian]
-            [langohr.core :as amqp-core]
-            [langohr.channel :as amqp-channel]
-            [langohr.basic :as amqp-basic]
-            [langohr.queue :as amqp-queue]))
+  (:require [clojure.tools.logging :as logging]
+            [parcel.mq :refer [with-connection receive-message! send-message!]]
+            [parcel.config :refer [load-config! handler-config]]))
 
-(def ^:private config-filename "parcel.config")
+(def ^:private running-server-handler (atom nil))
+(def ^:private running-server? (atom false))
 
-(def ^:dynamic *default-connection* nil)
+(defn work
+  [queue-key handler]
+  (loop [msg nil]
+    (when msg
+      (let [task (get handler (:request msg))]
+        (task (dissoc msg :request))))
+    (Thread/sleep (:sleep handler-config))
+    (when @running-server?
+      (recur (with-connection queue-key (receive-message!))))))
 
-(def ^:dynamic *amqp-config* nil)
-
-(defn load-config!
-  "Load configuration file from class path"
+(defn init!
   []
-  (let [rsrc (if-let [r (io/resource (str config-filename ".clj"))]
-               r
-               (if-let [r (io/resource (str config-filename ".edn"))]
-                 r
-                 nil))]
-    (when-let [conf (if-not (nil? rsrc)
-                      (edn/read-string (slurp rsrc)))]
-      (intern 'parcel.core '*amqp-config* (:amqp conf)))))
+  (load-config!)
+  nil)
 
-(defrecord Connection [config queue conn ch])
+(defn start!
+  [queue-key handler]
+  (when-not @running-server?
+    (reset! running-server? true)
+    (reset! running-server-handler (future (work queue-key handler)))
+    (logging/info "Started task handler")))
 
-(defn open!
-  "Open a connection to a quque"
-  ([queue]
-   (if-let [config *amqp-config*]
-     (open! config queue)
-     (throw (RuntimeException. (str "AMQP configuration is not specified")))))
-  ([config queue]
-   (let [conn (amqp-core/connect config)
-         ch (amqp-channel/open conn)]
-     (amqp-queue/declare ch queue {:exclusive false :auto-delete true})
-     (Connection. config queue conn ch))))
+(defn stop!
+  []
+  (when @running-server?
+    (reset! running-server? false)
+    (reset! running-server-handler nil)
+    (logging/info "Halted task handler")))
 
-(defn close!
-  "Close a connection from a queue"
-  [connection]
-  (amqp-core/close (:ch connection))
-  (amqp-core/close (:conn connection)))
-
-(defn send-message!
-  "Send a message"
-  ([body]
-   (send-message! *default-connection* body))
-  ([connection body]
-   (amqp-basic/publish (:ch connection)
-                       ""
-                       (:queue connection)
-                       (-> body
-                           fressian/write
-                           .array)
-                       {:content-type "application/fressian"})))
-
-(defn clear-messages!
-  "Clear all messages from a queue"
-  ([]
-   (clear-messages! *default-connection*))
-  ([connection]
-   (amqp-queue/purge (:ch connection) (:queue connection))))
-
-(defn receive-message!
-  "Receive one message from a queue"
-  ([]
-   (receive-message! *default-connection*))
-  ([connection]
-   (let [[{:keys [content-type] :as meta} ^bytes payload] (amqp-basic/get (:ch connection) (:queue connection))]
-     (if-not (nil? payload)
-       (fressian/read payload)))))
-
-(defmacro with-connection
-  ""
-  [queue & exprs]
-  `(let [c# (parcel.core/open! ~queue)]
-     (binding [parcel.core/*default-connection* c#]
-       (let [result# (do ~@exprs)]
-         (parcel.core/close! c#)
-         result#))))
+(defn send!
+  [queue-key request body]
+  (with-connection queue-key
+    (send-message! (assoc body :request request))))
