@@ -1,9 +1,9 @@
 (ns parcel.mq
-  (:require [clojure.data.fressian :as fressian]
-            [langohr.core :as amqp-core]
+  (:require [langohr.core :as amqp-core]
             [langohr.channel :as amqp-channel]
             [langohr.basic :as amqp-basic]
             [langohr.queue :as amqp-queue]
+            [parcel.entry :as entry]
             [parcel.config :refer [amqp-config]]))
 
 (def ^:dynamic *default-connection* nil)
@@ -36,9 +36,7 @@
    (amqp-basic/publish (:ch connection)
                        ""
                        (:queue connection)
-                       (-> body
-                           fressian/write
-                           .array)
+                       (entry/encode body)
                        {:content-type "application/fressian"})))
 
 (defn clear-messages!
@@ -55,7 +53,7 @@
   ([connection]
    (let [[{:keys [content-type] :as meta} ^bytes payload] (amqp-basic/get (:ch connection) (:queue connection))]
      (if-not (nil? payload)
-       (fressian/read payload)))))
+       (entry/decode payload)))))
 
 (defmacro with-connection
   ""
