@@ -3,24 +3,19 @@
             [langohr.channel :as amqp-channel]
             [langohr.basic :as amqp-basic]
             [langohr.queue :as amqp-queue]
-            [parcel.entry :as entry]
-            [parcel.config :refer [amqp-config]]))
+            [parcel.entry :as entry]))
 
 (def ^:dynamic *default-connection* nil)
 
-(defrecord Connection [config queue conn ch])
+(defrecord Connection [spec queue conn ch])
 
 (defn open!
   "Open a connection to a quque"
-  ([queue]
-   (if-let [config amqp-config]
-     (open! config queue)
-     (throw (RuntimeException. (str "AMQP configuration is not specified")))))
-  ([config queue]
-   (let [conn (amqp-core/connect config)
-         ch (amqp-channel/open conn)]
-     (amqp-queue/declare ch queue {:exclusive false :auto-delete true})
-     (Connection. config queue conn ch))))
+  [queue-spec queue]
+  (let [conn (amqp-core/connect queue-spec)
+        ch (amqp-channel/open conn)]
+    (amqp-queue/declare ch queue {:exclusive false :auto-delete true})
+    (Connection. queue-spec queue conn ch)))
 
 (defn close!
   "Close a connection from a queue"
@@ -57,8 +52,8 @@
 
 (defmacro with-connection
   ""
-  [queue & exprs]
-  `(let [c# (parcel.mq/open! ~queue)]
+  [queue-spec queue & exprs]
+  `(let [c# (parcel.mq/open! ~queue-spec ~queue)]
      (binding [parcel.mq/*default-connection* c#]
        (let [result# (do ~@exprs)]
          (parcel.mq/close! c#)

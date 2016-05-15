@@ -1,41 +1,37 @@
 (ns parcel.core
-  (:require [clojure.tools.logging :as logging]
-            [parcel.mq :refer [with-connection receive-message! send-message!]]
-            [parcel.config :refer [load-config! handler-config]]))
+  (:require [parcel.mq :as queue :refer [with-connection]]))
 
-(def ^:private running-server-handler (atom nil))
-(def ^:private running-server? (atom false))
+(defn dispatch!
+  [queue-spec queue-key {:keys [request body] :as msg}]
+  (with-connection queue-spec queue-key
+    (queue/send-message! {:request request
+                          :body body})))
 
-(defn work
-  [queue-key handler]
-  (loop [msg nil]
-    (when msg
-      (let [task (get handler (:request msg))]
-        (task (dissoc msg :request))))
-    (Thread/sleep (:sleep handler-config))
-    (when @running-server?
-      (recur (with-connection queue-key (receive-message!))))))
+(defn start-server!
+  ([queue-spec queue-key handlers]
+   (start-server! queue-spec queue-key handlers {}))
+  ([queue-spec queue-key handlers {:keys [interval]
+                                   :or {interval 1000}
+                                   :as opts}]
+   (let [available? (atom true)]
 
-(defn init!
-  []
-  (load-config!)
+     (future
+       (while @available?
+         (try
+           (when-let [msg (with-connection queue-spec queue-key (queue/receive-message!))]
+             (when-let [handler-fn (get handlers (:request msg))]
+               (handler-fn (:body msg))))
+           (catch Exception e (do (.printStackTrace e)
+                                  nil)))
+         (Thread/sleep interval)))
+
+     ;; return server instance
+     {:queue-key queue-key
+      :available? available?
+      :handlers handlers
+      :opts opts})))
+
+(defn stop-server!
+  [server]
+  (reset! (:available? server) false)
   nil)
-
-(defn start!
-  [queue-key handler]
-  (when-not @running-server?
-    (reset! running-server? true)
-    (reset! running-server-handler (future (work queue-key handler)))
-    (logging/info "Started task handler")))
-
-(defn stop!
-  []
-  (when @running-server?
-    (reset! running-server? false)
-    (reset! running-server-handler nil)
-    (logging/info "Halted task handler")))
-
-(defn send!
-  [queue-key request body]
-  (with-connection queue-key
-    (send-message! (assoc body :request request))))
