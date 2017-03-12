@@ -1,4 +1,4 @@
-(defproject parcel "0.1.3-SNAPSHOT"
+(defproject parcel "0.2.0-SNAPSHOT"
   :description "Simple message passing library"
   :license {:name "Apache License, Version 2.0"
             :url "http://www.apache.org/licenses/LICENSE-2.0.html"}
